@@ -441,7 +441,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                                           trx.category?.name ?? "Umum",
                                           style: const TextStyle(
                                             fontWeight: FontWeight.bold,
-                                            fontSize: 16,
+                                            fontSize: 14,
                                             color: AppColors.textPrimary,
                                           ),
                                         ),

@@ -156,7 +156,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         Text(
                           "Halo, Bos!",
                           style: GoogleFonts.poppins(
-                            color: Colors.grey,
+                            color: AppColors.textSecondary,
                             fontSize: 14,
                           ),
                         ),
@@ -235,12 +235,12 @@ class _HomeScreenState extends State<HomeScreen> {
                         currencyFormat.format(_monthlyBalance),
                         style: GoogleFonts.poppins(
                           color: Colors.white,
-                          fontSize: 30,
+                          fontSize: 26,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
 
-                      const SizedBox(height: 25),
+                      const SizedBox(height: 20),
                       Row(
                         children: [
                           Expanded(
@@ -278,7 +278,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                         style: GoogleFonts.poppins(
                                           color: Colors.white,
                                           fontWeight: FontWeight.bold,
-                                          fontSize: 13,
+                                          fontSize: 12,
                                         ),
                                       ),
                                     ],
@@ -323,7 +323,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                         style: GoogleFonts.poppins(
                                           color: Colors.white,
                                           fontWeight: FontWeight.bold,
-                                          fontSize: 13,
+                                          fontSize: 12,
                                         ),
                                       ),
                                     ],
@@ -388,21 +388,21 @@ class _HomeScreenState extends State<HomeScreen> {
                         final isExpense = trx.category?.isExpense ?? true;
 
                         return Container(
-                          margin: const EdgeInsets.only(bottom: 15),
-                          padding: const EdgeInsets.all(16),
+                          margin: const EdgeInsets.only(bottom: 12),
+                          padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
                             color: AppColors.white,
-                            borderRadius: BorderRadius.circular(20),
+                            borderRadius: BorderRadius.circular(15),
                           ),
                           child: Row(
                             children: [
                               Container(
-                                padding: const EdgeInsets.all(12),
+                                padding: const EdgeInsets.all(10),
                                 decoration: BoxDecoration(
                                   color: isExpense
                                       ? AppColors.expense.withOpacity(0.1)
                                       : AppColors.income.withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(15),
+                                  borderRadius: BorderRadius.circular(12),
                                 ),
                                 child: Icon(
                                   isExpense
@@ -411,7 +411,6 @@ class _HomeScreenState extends State<HomeScreen> {
                                   color: isExpense
                                       ? AppColors.expense
                                       : AppColors.income,
-                                  size: 24,
                                 ),
                               ),
                               const SizedBox(width: 15),
@@ -421,19 +420,17 @@ class _HomeScreenState extends State<HomeScreen> {
                                   children: [
                                     Text(
                                       trx.category?.name ?? "Umum",
-                                      style: GoogleFonts.poppins(
+                                      style: const TextStyle(
                                         fontWeight: FontWeight.bold,
                                         color: AppColors.textPrimary,
-                                        fontSize: 16,
                                       ),
                                     ),
-                                    const SizedBox(height: 4),
                                     Text(
                                       DateFormat(
                                         'd MMM yyyy',
                                         'id_ID',
                                       ).format(trx.date),
-                                      style: GoogleFonts.poppins(
+                                      style: const TextStyle(
                                         color: AppColors.textSecondary,
                                         fontSize: 12,
                                       ),
@@ -444,12 +441,11 @@ class _HomeScreenState extends State<HomeScreen> {
                               Text(
                                 (isExpense ? "- " : "+ ") +
                                     currencyFormat.format(trx.amount),
-                                style: GoogleFonts.poppins(
+                                style: TextStyle(
                                   fontWeight: FontWeight.bold,
                                   color: isExpense
                                       ? AppColors.expense
                                       : AppColors.income,
-                                  fontSize: 14,
                                 ),
                               ),
                             ],
