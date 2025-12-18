@@ -1,3 +1,4 @@
+import 'package:catat_uang_app/core/app_notification.dart';
 import 'package:catat_uang_app/core/colors.dart';
 import 'package:catat_uang_app/models/transaction_model.dart';
 import 'package:catat_uang_app/screens/input_transaction_screen.dart';
@@ -6,10 +7,9 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:catat_uang_app/core/app_notification.dart';
 
 class TransactionHistoryScreen extends StatefulWidget {
-  final bool isExpense;
+  final bool isExpense; // True = Pengeluaran, False = Pemasukan
 
   const TransactionHistoryScreen({super.key, required this.isExpense});
 
@@ -23,7 +23,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
   bool _isLoading = true;
   List<TransactionModel> _transactions = [];
 
-  // STATE FILTER
+  // FILTER STATE
   String _filterType = 'Bulanan';
   DateTime _selectedDate = DateTime.now();
 
@@ -38,14 +38,19 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
     try {
       final userId = _supabase.auth.currentUser!.id;
 
+      // Query Dasar
       var query = _supabase
           .from('transactions')
           .select('*, categories!inner(*)')
           .eq('user_id', userId)
-          .eq('categories.is_expense', widget.isExpense);
+          .eq(
+            'categories.is_expense',
+            widget.isExpense,
+          ); // Filter sesuai Tab (Masuk/Keluar)
 
       final dateStr = DateFormat('yyyy-MM-dd').format(_selectedDate);
 
+      // Logika Filter Waktu
       if (_filterType == 'Harian') {
         query = query.eq('date', dateStr);
       } else if (_filterType == 'Bulanan') {
@@ -66,7 +71,10 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
             .lt('date', DateFormat('yyyy-MM-dd').format(nextYear));
       }
 
-      final response = await query.order('date', ascending: false);
+      final response = await query.order(
+        'date',
+        ascending: false,
+      ); // Urutkan dari yang terbaru
       final List<dynamic> data = response;
 
       if (mounted) {
@@ -85,20 +93,15 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
   Future<void> _deleteTransaction(int id) async {
     try {
       await _supabase.from('transactions').delete().eq('id', id);
-      _fetchTransactions(); // Refresh List
-
-      if (mounted) {
-        // NOTIFIKASI SUKSES DI ATAS (Bukan SnackBar biasa lagi)
-        AppNotification.success(context, "Transaksi berhasil dihapus!");
-      }
+      _fetchTransactions();
+      if (mounted) AppNotification.success(context, "Transaksi dihapus!");
     } catch (e) {
-      if (mounted) {
-        AppNotification.error(context, "Gagal menghapus: $e");
-      }
+      if (mounted) AppNotification.error(context, "Gagal hapus: $e");
     }
   }
 
   Future<void> _pickSmartDate() async {
+    // Logic Date Picker
     if (_filterType == 'Harian') {
       final picked = await showDatePicker(
         context: context,
@@ -244,9 +247,9 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
         : AppColors.income;
 
     String dateLabel = "";
-    if (_filterType == 'Harian') {
+    if (_filterType == 'Harian')
       dateLabel = DateFormat('d MMMM yyyy', 'id_ID').format(_selectedDate);
-    } else if (_filterType == 'Bulanan')
+    else if (_filterType == 'Bulanan')
       dateLabel = DateFormat('MMMM yyyy', 'id_ID').format(_selectedDate);
     else
       dateLabel = DateFormat('yyyy', 'id_ID').format(_selectedDate);
@@ -256,6 +259,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
       body: SafeArea(
         child: Column(
           children: [
+            // HEADER FILTER
             Container(
               padding: const EdgeInsets.all(20),
               decoration: const BoxDecoration(
@@ -268,7 +272,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    "Data $pageTitle",
+                    "Riwayat $pageTitle",
                     style: GoogleFonts.poppins(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
@@ -276,8 +280,6 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                     ),
                   ),
                   const SizedBox(height: 15),
-
-                  // CHIP FILTER FULL WIDTH (UPDATE INI)
                   Row(
                     children: [
                       _buildFilterBtn("Harian", themeColor),
@@ -288,8 +290,6 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                     ],
                   ),
                   const SizedBox(height: 15),
-
-                  // DATE PICKER
                   InkWell(
                     onTap: _pickSmartDate,
                     child: Container(
@@ -329,6 +329,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
               ),
             ),
 
+            // LIST TRANSAKSI
             Expanded(
               child: _isLoading
                   ? const Center(child: CircularProgressIndicator())
@@ -344,6 +345,17 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                       itemCount: _transactions.length,
                       itemBuilder: (context, index) {
                         final trx = _transactions[index];
+
+                        // LOGIKA NOTE
+                        final String noteText =
+                            (trx.note != null && trx.note!.isNotEmpty)
+                            ? trx.note!
+                            : "Tidak ada catatan";
+                        final Color noteColor =
+                            (trx.note != null && trx.note!.isNotEmpty)
+                            ? Colors.grey.shade600
+                            : Colors.grey.shade400;
+
                         return Dismissible(
                           key: Key(trx.id.toString()),
                           direction: DismissDirection.endToStart,
@@ -394,13 +406,15 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                             },
                             child: Container(
                               margin: const EdgeInsets.only(bottom: 12),
-                              padding: const EdgeInsets.all(12),
+                              padding: const EdgeInsets.all(16),
                               decoration: BoxDecoration(
                                 color: Colors.white,
                                 borderRadius: BorderRadius.circular(15),
                               ),
                               child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
+                                  // ICON
                                   Container(
                                     padding: const EdgeInsets.all(10),
                                     decoration: BoxDecoration(
@@ -415,37 +429,70 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                                     ),
                                   ),
                                   const SizedBox(width: 15),
+
+                                  // TEXT CENTER (Kategori & Catatan)
                                   Expanded(
                                     child: Column(
                                       crossAxisAlignment:
                                           CrossAxisAlignment.start,
                                       children: [
+                                        // JUDUL KATEGORI
                                         Text(
                                           trx.category?.name ?? "Umum",
                                           style: const TextStyle(
                                             fontWeight: FontWeight.bold,
+                                            fontSize: 16,
                                             color: AppColors.textPrimary,
                                           ),
                                         ),
+                                        const SizedBox(height: 4),
+
+                                        // CATATAN
                                         Text(
-                                          DateFormat(
-                                            'd MMM yyyy',
-                                            'id_ID',
-                                          ).format(trx.date),
-                                          style: const TextStyle(
-                                            color: AppColors.textSecondary,
+                                          noteText,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            color: noteColor,
                                             fontSize: 12,
+                                            fontStyle:
+                                                (trx.note == null ||
+                                                    trx.note!.isEmpty)
+                                                ? FontStyle.italic
+                                                : FontStyle.normal,
                                           ),
                                         ),
                                       ],
                                     ),
                                   ),
-                                  Text(
-                                    currencyFormat.format(trx.amount),
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      color: themeColor,
-                                    ),
+
+                                  // KOLOM KANAN (Nominal & Tanggal)
+                                  Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.end, // Rata Kanan
+                                    children: [
+                                      // JUMLAH UANG
+                                      Text(
+                                        currencyFormat.format(trx.amount),
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          color: themeColor,
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      // TANGGAL (Sekarang di bawah Nominal)
+                                      Text(
+                                        DateFormat(
+                                          'd MMM yyyy',
+                                          'id_ID',
+                                        ).format(trx.date),
+                                        style: const TextStyle(
+                                          color: AppColors.textSecondary,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ],
                               ),
@@ -461,11 +508,9 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
     );
   }
 
-  // WIDGET TOMBOL FULL WIDTH
   Widget _buildFilterBtn(String label, Color themeColor) {
     final bool isSelected = _filterType == label;
     return Expanded(
-      // PAKAI EXPANDED BIAR FULL
       child: GestureDetector(
         onTap: () {
           if (!isSelected) {
@@ -479,9 +524,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
           padding: const EdgeInsets.symmetric(vertical: 10),
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: isSelected
-                ? AppColors.textPrimary
-                : Colors.transparent, // Aktif = Hitam
+            color: isSelected ? AppColors.textPrimary : Colors.transparent,
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
               color: isSelected ? AppColors.textPrimary : Colors.grey.shade300,

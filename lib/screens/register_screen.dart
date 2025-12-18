@@ -17,10 +17,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final SupabaseClient _supabase = Supabase.instance.client;
+
   bool _isLoading = false;
+  bool _isObscure = true; // STATE BARU
 
   Future<void> _register() async {
-    // Validasi Input
     if (_nameController.text.isEmpty ||
         _emailController.text.isEmpty ||
         _passwordController.text.isEmpty) {
@@ -30,48 +31,32 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     setState(() => _isLoading = true);
     try {
-      // 1. DAFTAR AUTH (Ini Langkah Paling Penting)
       final AuthResponse res = await _supabase.auth.signUp(
         email: _emailController.text,
         password: _passwordController.text,
-        data: {
-          'name': _nameController.text,
-        }, // Kita simpan nama di Metadata juga sebagai cadangan
+        data: {'name': _nameController.text},
       );
 
-      // Cek apakah User berhasil dibuat
       if (res.user != null) {
-        // 2. SIMPAN KE TABEL PROFILES (Kita buat "Safe Mode")
-        // Kita bungkus ini dengan try-catch sendiri.
-        // Jadi kalaupun ini gagal (misal karena tabel tidak ada/konflik trigger),
-        // User TETAP dianggap BERHASIL mendaftar.
         try {
           await _supabase.from('profiles').upsert({
             'id': res.user!.id,
             'name': _nameController.text,
-            // 'email' sudah dihapus, aman.
           });
         } catch (profileError) {
-          // Kalau gagal simpan profil, kita diamkan saja (Silent Fail).
-          // Karena data nama sudah ada di Metadata Auth (Langkah 1), jadi aman.
-          debugPrint(
-            "Warning: Gagal simpan ke tabel profiles, tapi Auth sukses. Error: $profileError",
-          );
+          debugPrint("Warning: Gagal simpan profil: $profileError");
         }
 
-        // 3. SUKSES!
         if (mounted) {
           AppNotification.success(
             context,
             "Registrasi Berhasil! Silakan Login.",
           );
-          Navigator.pop(context); // Balik ke Login
+          Navigator.pop(context);
         }
       }
     } catch (e) {
-      // Ini catch untuk error FATAL (misal internet mati, atau email sudah terdaftar)
       if (mounted) {
-        // Tampilkan error asli jika bukan error umum, biar kita tau apa masalahnya
         AppNotification.error(context, e.toString());
       }
     } finally {
@@ -81,7 +66,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // UI TETAP SAMA SEPERTI SEBELUMNYA
     return Scaffold(
       backgroundColor: AppColors.white,
       appBar: AppBar(
@@ -136,12 +120,26 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 icon: PhosphorIcons.envelopeSimple(),
               ),
               const SizedBox(height: 20),
+
+              // PASSWORD DENGAN MATA
               _buildTextField(
                 controller: _passwordController,
                 label: "Password",
                 icon: PhosphorIcons.lockKey(),
-                isPassword: true,
+                isPassword: _isObscure,
+                suffixIcon: IconButton(
+                  onPressed: () {
+                    setState(() {
+                      _isObscure = !_isObscure;
+                    });
+                  },
+                  icon: Icon(
+                    _isObscure ? PhosphorIcons.eye() : PhosphorIcons.eyeSlash(),
+                    color: Colors.grey,
+                  ),
+                ),
               ),
+
               const SizedBox(height: 40),
               SizedBox(
                 height: 55,
@@ -173,11 +171,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
+  // UPDATE HELPER DI SINI JUGA
   Widget _buildTextField({
     required TextEditingController controller,
     required String label,
     required IconData icon,
     bool isPassword = false,
+    Widget? suffixIcon, // Tambahan
   }) {
     return TextFormField(
       controller: controller,
@@ -186,6 +186,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         labelText: label,
         labelStyle: GoogleFonts.poppins(color: Colors.grey),
         prefixIcon: Icon(icon, color: AppColors.primary),
+        suffixIcon: suffixIcon, // Pakai iconnya
         filled: true,
         fillColor: Colors.grey.shade50,
         enabledBorder: OutlineInputBorder(

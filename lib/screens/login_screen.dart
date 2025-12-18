@@ -18,7 +18,9 @@ class _LoginScreenState extends State<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final SupabaseClient _supabase = Supabase.instance.client;
+
   bool _isLoading = false;
+  bool _isObscure = true; // STATE BARU: Untuk atur sembunyi/lihat password
 
   Future<void> _login() async {
     setState(() => _isLoading = true);
@@ -36,7 +38,6 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     } catch (e) {
       if (mounted) {
-        // GANTI INI:
         AppNotification.error(context, e.toString());
       }
     } finally {
@@ -49,24 +50,18 @@ class _LoginScreenState extends State<LoginScreen> {
     return Scaffold(
       backgroundColor: AppColors.white,
       body: Center(
-        // 1. Center Vertikal
         child: SingleChildScrollView(
-          // 2. Scrollable biar aman dari keyboard
           padding: const EdgeInsets.symmetric(horizontal: 24),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment:
-                CrossAxisAlignment.stretch, // 3. Center Horizontal
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // ICON / LOGO
               const Icon(
                 PhosphorIconsFill.wallet,
                 size: 80,
                 color: AppColors.primary,
               ),
               const SizedBox(height: 20),
-
-              // JUDUL
               Text(
                 "Selamat Datang!",
                 textAlign: TextAlign.center,
@@ -95,12 +90,24 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(height: 20),
 
-              // INPUT PASSWORD
+              // INPUT PASSWORD (DENGAN MATA)
               _buildTextField(
                 controller: _passwordController,
                 label: "Password",
                 icon: PhosphorIcons.lockKey(),
-                isPassword: true,
+                isPassword: _isObscure, // Pakai variable state
+                // ICON MATA DI KANAN
+                suffixIcon: IconButton(
+                  onPressed: () {
+                    setState(() {
+                      _isObscure = !_isObscure; // Toggle logika
+                    });
+                  },
+                  icon: Icon(
+                    _isObscure ? PhosphorIcons.eye() : PhosphorIcons.eyeSlash(),
+                    color: Colors.grey,
+                  ),
+                ),
               ),
               const SizedBox(height: 10),
 
@@ -164,12 +171,13 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  // WIDGET TEXT FIELD CUSTOM BIAR RAPI
+  // UPDATE WIDGET BUILDER: Tambah parameter suffixIcon
   Widget _buildTextField({
     required TextEditingController controller,
     required String label,
     required IconData icon,
     bool isPassword = false,
+    Widget? suffixIcon, // Parameter baru opsional
   }) {
     return TextFormField(
       controller: controller,
@@ -178,8 +186,9 @@ class _LoginScreenState extends State<LoginScreen> {
         labelText: label,
         labelStyle: GoogleFonts.poppins(color: Colors.grey),
         prefixIcon: Icon(icon, color: AppColors.primary),
+        suffixIcon: suffixIcon, // Pasang icon mata disini
         filled: true,
-        fillColor: Colors.grey.shade50, // Background agak abu dikit
+        fillColor: Colors.grey.shade50,
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(15),
           borderSide: BorderSide(color: Colors.grey.shade200),
