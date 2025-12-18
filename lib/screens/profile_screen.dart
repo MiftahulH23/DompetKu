@@ -1,4 +1,3 @@
-import 'package:catat_uang_app/core/app_notification.dart';
 import 'package:catat_uang_app/core/colors.dart';
 import 'package:catat_uang_app/screens/login_screen.dart';
 import 'package:flutter/material.dart';

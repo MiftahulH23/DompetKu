@@ -50,12 +50,13 @@ class _HomeScreenState extends State<HomeScreen> {
           .select()
           .eq('id', user.id)
           .maybeSingle();
-      if (mounted)
+      if (mounted) {
         setState(
           () => _userName = data != null
               ? data['name']
               : (user.userMetadata?['name'] ?? "User"),
         );
+      }
     } catch (e) {
       debugPrint("Error user: $e");
     }
@@ -80,10 +81,11 @@ class _HomeScreenState extends State<HomeScreen> {
         final isExpense = item['categories']['is_expense'] as bool;
 
         if (date.year == now.year && date.month == now.month) {
-          if (isExpense)
+          if (isExpense) {
             expense += amount;
-          else
+          } else {
             income += amount;
+          }
         }
       }
 
@@ -112,11 +114,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _logout() async {
     await _supabase.auth.signOut();
-    if (mounted)
+    if (mounted) {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (context) => const LoginScreen()),
       );
+    }
   }
 
   // --- WIDGET HOME CONTENT (YANG DIPERBAIKI SCROLLNYA) ---

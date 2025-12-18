@@ -49,22 +49,30 @@ class _InputTransactionScreenState extends State<InputTransactionScreen> {
 
   IconData _getCategoryIcon(String categoryName) {
     final name = categoryName.toLowerCase();
-    if (name.contains('makan') || name.contains('minum'))
+    if (name.contains('makan') || name.contains('minum')) {
       return PhosphorIcons.bowlFood(PhosphorIconsStyle.fill);
-    if (name.contains('transport') || name.contains('bensin'))
+    }
+    if (name.contains('transport') || name.contains('bensin')) {
       return PhosphorIcons.bus(PhosphorIconsStyle.fill);
-    if (name.contains('belanja') || name.contains('mart'))
+    }
+    if (name.contains('belanja') || name.contains('mart')) {
       return PhosphorIcons.shoppingBag(PhosphorIconsStyle.fill);
-    if (name.contains('hiburan') || name.contains('nonton'))
+    }
+    if (name.contains('hiburan') || name.contains('nonton')) {
       return PhosphorIcons.gameController(PhosphorIconsStyle.fill);
-    if (name.contains('kesehatan') || name.contains('obat'))
+    }
+    if (name.contains('kesehatan') || name.contains('obat')) {
       return PhosphorIcons.firstAid(PhosphorIconsStyle.fill);
-    if (name.contains('tagihan') || name.contains('listrik'))
+    }
+    if (name.contains('tagihan') || name.contains('listrik')) {
       return PhosphorIcons.lightning(PhosphorIconsStyle.fill);
-    if (name.contains('gaji'))
+    }
+    if (name.contains('gaji')) {
       return PhosphorIcons.money(PhosphorIconsStyle.fill);
-    if (name.contains('bonus'))
+    }
+    if (name.contains('bonus')) {
       return PhosphorIcons.gift(PhosphorIconsStyle.fill);
+    }
     return PhosphorIcons.tag(PhosphorIconsStyle.fill);
   }
 

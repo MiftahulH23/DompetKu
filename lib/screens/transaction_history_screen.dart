@@ -247,9 +247,9 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
         : AppColors.income;
 
     String dateLabel = "";
-    if (_filterType == 'Harian')
+    if (_filterType == 'Harian') {
       dateLabel = DateFormat('d MMMM yyyy', 'id_ID').format(_selectedDate);
-    else if (_filterType == 'Bulanan')
+    } else if (_filterType == 'Bulanan')
       dateLabel = DateFormat('MMMM yyyy', 'id_ID').format(_selectedDate);
     else
       dateLabel = DateFormat('yyyy', 'id_ID').format(_selectedDate);

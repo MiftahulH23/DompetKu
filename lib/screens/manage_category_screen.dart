@@ -73,15 +73,17 @@ class _ManageCategoryScreenState extends State<ManageCategoryScreen> {
       await _supabase.from('categories').delete().eq('id', id);
       _fetchCategories();
       // GANTI PAKE NOTIFIKASI ATAS
-      if (mounted)
+      if (mounted) {
         AppNotification.success(context, "Kategori berhasil dihapus!");
+      }
     } catch (e) {
       // GANTI PAKE NOTIFIKASI ATAS
-      if (mounted)
+      if (mounted) {
         AppNotification.error(
           context,
           "Gagal hapus. Kategori sedang digunakan di transaksi.",
         );
+      }
     }
   }
 
@@ -181,11 +183,12 @@ class _ManageCategoryScreenState extends State<ManageCategoryScreen> {
                           } catch (e) {
                             // 5. Gagal? Stop loading dialog & Tampilkan error
                             setDialogState(() => isSaving = false);
-                            if (context.mounted)
+                            if (context.mounted) {
                               AppNotification.error(
                                 context,
                                 "Terjadi kesalahan: $e",
                               );
+                            }
                           }
                         },
                   style: ElevatedButton.styleFrom(
