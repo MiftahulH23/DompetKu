@@ -3,6 +3,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class StatsScreen extends StatefulWidget {
@@ -20,7 +21,7 @@ class _StatsScreenState extends State<StatsScreen> {
   bool _showExpense = true;
 
   // STATE FILTER
-  String _filterType = 'Bulanan';
+  String _filterType = 'Bulanan'; // Default
   DateTime _selectedDate = DateTime.now();
 
   Map<String, double> _categoryTotals = {};
@@ -33,7 +34,7 @@ class _StatsScreenState extends State<StatsScreen> {
     _fetchStats();
   }
 
-  // 1. FETCH DATA
+  // 1. FETCH DATA (Logika Database - Tetap Sama)
   Future<void> _fetchStats() async {
     setState(() => _isLoading = true);
 
@@ -102,7 +103,7 @@ class _StatsScreenState extends State<StatsScreen> {
     }
   }
 
-  // 2. PICKER TANGGAL PINTAR
+  // 2. PICKER TANGGAL PINTAR (Logic Date Picker)
   Future<void> _pickSmartDate() async {
     if (_filterType == 'Harian') {
       final picked = await showDatePicker(
@@ -112,7 +113,10 @@ class _StatsScreenState extends State<StatsScreen> {
         lastDate: DateTime(2030),
         locale: const Locale('id', 'ID'),
       );
-      if (picked != null) setState(() => _selectedDate = picked);
+      if (picked != null) {
+        setState(() => _selectedDate = picked);
+        _fetchStats();
+      }
     } else if (_filterType == 'Tahunan') {
       showDialog(
         context: context,
@@ -128,11 +132,12 @@ class _StatsScreenState extends State<StatsScreen> {
               onChanged: (dt) {
                 setState(() => _selectedDate = dt);
                 Navigator.pop(ctx);
+                _fetchStats();
               },
             ),
           ),
         ),
-      ).then((_) => _fetchStats());
+      );
     } else {
       // Bulanan
       final months = [
@@ -173,6 +178,7 @@ class _StatsScreenState extends State<StatsScreen> {
                       ),
                     );
                     Navigator.pop(ctx);
+                    _fetchStats();
                   },
                   child: Container(
                     margin: const EdgeInsets.all(4),
@@ -232,9 +238,8 @@ class _StatsScreenState extends State<StatsScreen> {
             ),
           ],
         ),
-      ).then((_) => _fetchStats());
+      );
     }
-    if (_filterType == 'Harian') _fetchStats();
   }
 
   @override
@@ -245,14 +250,15 @@ class _StatsScreenState extends State<StatsScreen> {
       decimalDigits: 0,
     );
 
-    // Label Tanggal
+    // Label Tanggal (Dinamis sesuai filter)
     String dateLabel = "";
     if (_filterType == 'Harian') {
       dateLabel = DateFormat('d MMMM yyyy', 'id_ID').format(_selectedDate);
-    } else if (_filterType == 'Bulanan')
+    } else if (_filterType == 'Bulanan') {
       dateLabel = DateFormat('MMMM yyyy', 'id_ID').format(_selectedDate);
-    else
+    } else {
       dateLabel = DateFormat('yyyy', 'id_ID').format(_selectedDate);
+    }
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -260,12 +266,13 @@ class _StatsScreenState extends State<StatsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // === HEADER (STICKY) ===
             Container(
               padding: const EdgeInsets.all(20),
               decoration: const BoxDecoration(
                 color: AppColors.white,
                 borderRadius: BorderRadius.vertical(
-                  bottom: Radius.circular(20),
+                  bottom: Radius.circular(25),
                 ),
               ),
               child: Column(
@@ -279,9 +286,9 @@ class _StatsScreenState extends State<StatsScreen> {
                       color: AppColors.textPrimary,
                     ),
                   ),
-                  const SizedBox(height: 15),
+                  const SizedBox(height: 20),
 
-                  // 1. TOGGLE (PENGELUARAN / PEMASUKAN)
+                  // TOGGLE (PENGELUARAN / PEMASUKAN)
                   Container(
                     padding: const EdgeInsets.all(4),
                     decoration: BoxDecoration(
@@ -297,59 +304,121 @@ class _StatsScreenState extends State<StatsScreen> {
                   ),
                   const SizedBox(height: 15),
 
-                  // 2. FILTER WAKTU FULL WIDTH (UPDATE INI)
+                  // --- BARIS FILTER (CLEAN & MEWAH) ---
                   Row(
                     children: [
-                      _buildFilterBtn("Harian"),
-                      const SizedBox(width: 10),
-                      _buildFilterBtn("Bulanan"),
-                      const SizedBox(width: 10),
-                      _buildFilterBtn("Tahunan"),
-                    ],
-                  ),
-                  const SizedBox(height: 15),
-
-                  // 3. DATE PICKER
-                  InkWell(
-                    onTap: _pickSmartDate,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 12,
-                      ),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey.shade300),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Row(
-                            children: [
-                              const Icon(
-                                Icons.calendar_today,
-                                size: 18,
-                                color: AppColors.primary,
-                              ),
-                              const SizedBox(width: 10),
-                              Text(
-                                dateLabel,
-                                style: GoogleFonts.poppins(
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ],
+                      // 1. TOMBOL "FILTER" (POPUP MENU)
+                      Container(
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Colors.grey.shade300),
+                          borderRadius: BorderRadius.circular(12),
+                          color: Colors.white,
+                        ),
+                        child: PopupMenuButton<String>(
+                          onSelected: (value) {
+                            setState(() {
+                              _filterType = value;
+                              _fetchStats(); // Auto refresh
+                            });
+                          },
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(15),
                           ),
-                          const Icon(Icons.arrow_drop_down, color: Colors.grey),
-                        ],
+                          itemBuilder: (context) => [
+                            _buildPopupItem("Harian", Icons.calendar_view_day),
+                            _buildPopupItem(
+                              "Bulanan",
+                              Icons.calendar_view_month,
+                            ),
+                            _buildPopupItem("Tahunan", Icons.calendar_today),
+                          ],
+                          // TAMPILAN TOMBOL FILTER
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 12,
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  PhosphorIconsFill.faders,
+                                  size: 18,
+                                  color: AppColors.textPrimary,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  _filterType,
+                                  style: GoogleFonts.poppins(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 13,
+                                    color: AppColors.textPrimary,
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                const Icon(
+                                  Icons.arrow_drop_down,
+                                  size: 18,
+                                  color: Colors.grey,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
                       ),
-                    ),
+
+                      const SizedBox(width: 10),
+
+                      // 2. TOMBOL TANGGAL (EXPANDED BIAR RAPI)
+                      Expanded(
+                        child: InkWell(
+                          onTap: _pickSmartDate,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                            decoration: BoxDecoration(
+                              border: Border.all(color: Colors.grey.shade300),
+                              borderRadius: BorderRadius.circular(12),
+                              color: Colors.white,
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Row(
+                                  children: [
+                                    const Icon(
+                                      PhosphorIconsRegular.calendarBlank,
+                                      size: 18,
+                                      color: AppColors.primary,
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Text(
+                                      dateLabel,
+                                      style: GoogleFonts.poppins(
+                                        fontWeight: FontWeight.w500,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const Icon(
+                                  Icons.arrow_drop_down,
+                                  size: 18,
+                                  color: Colors.grey,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
             ),
 
-            // KONTEN CHART
+            // === CONTENT (SCROLLABLE) ===
             Expanded(
               child: _isLoading
                   ? const Center(child: CircularProgressIndicator())
@@ -359,7 +428,7 @@ class _StatsScreenState extends State<StatsScreen> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Icon(
-                            Icons.pie_chart_outline,
+                            PhosphorIcons.chartPieSlice(),
                             size: 80,
                             color: Colors.grey.shade300,
                           ),
@@ -378,27 +447,49 @@ class _StatsScreenState extends State<StatsScreen> {
                       ),
                       child: Column(
                         children: [
-                          Text(
-                            _showExpense
-                                ? "Total Pengeluaran"
-                                : "Total Pemasukan",
-                            style: GoogleFonts.poppins(
-                              fontSize: 12,
-                              color: Colors.grey,
+                          // CARD TOTAL (DARK BLUE)
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(24),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF2C3E50),
+                              borderRadius: BorderRadius.circular(25),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: const Color(
+                                    0xFF2C3E50,
+                                  ).withOpacity(0.4),
+                                  blurRadius: 15,
+                                  offset: const Offset(0, 8),
+                                ),
+                              ],
+                            ),
+                            child: Column(
+                              children: [
+                                Text(
+                                  _showExpense
+                                      ? "Total Pengeluaran"
+                                      : "Total Pemasukan",
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 12,
+                                    color: Colors.white70,
+                                  ),
+                                ),
+                                const SizedBox(height: 5),
+                                Text(
+                                  currencyFormat.format(_totalAmount),
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 28,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                          Text(
-                            currencyFormat.format(_totalAmount),
-                            style: GoogleFonts.poppins(
-                              fontSize: 28,
-                              fontWeight: FontWeight.bold,
-                              color: _showExpense
-                                  ? AppColors.expense
-                                  : AppColors.income,
-                            ),
-                          ),
-                          const SizedBox(height: 20),
+                          const SizedBox(height: 30),
 
+                          // PIE CHART
                           SizedBox(
                             height: 250,
                             child: PieChart(
@@ -430,22 +521,26 @@ class _StatsScreenState extends State<StatsScreen> {
                           ),
                           const SizedBox(height: 30),
 
-                          Builder(
-                            builder: (context) {
-                              int i = 0;
-                              return Column(
-                                children: _categoryTotals.entries.map((entry) {
+                          // LIST KATEGORI
+                          Column(
+                            children: _categoryTotals.entries
+                                .toList()
+                                .asMap()
+                                .entries
+                                .map((entryMap) {
+                                  final index = entryMap.key;
+                                  final entry = entryMap.value;
                                   final percentage =
                                       (entry.value / _totalAmount * 100)
                                           .toStringAsFixed(1);
-                                  final color = _getColor(i);
-                                  i++;
+                                  final color = _getColor(index);
+
                                   return Container(
                                     margin: const EdgeInsets.only(bottom: 12),
                                     padding: const EdgeInsets.all(16),
                                     decoration: BoxDecoration(
                                       color: Colors.white,
-                                      borderRadius: BorderRadius.circular(12),
+                                      borderRadius: BorderRadius.circular(15),
                                     ),
                                     child: Row(
                                       mainAxisAlignment:
@@ -461,11 +556,12 @@ class _StatsScreenState extends State<StatsScreen> {
                                                 shape: BoxShape.circle,
                                               ),
                                             ),
-                                            const SizedBox(width: 10),
+                                            const SizedBox(width: 12),
                                             Text(
                                               entry.key,
-                                              style: const TextStyle(
-                                                fontWeight: FontWeight.bold,
+                                              style: GoogleFonts.poppins(
+                                                fontWeight: FontWeight.w600,
+                                                fontSize: 14,
                                               ),
                                             ),
                                           ],
@@ -478,14 +574,14 @@ class _StatsScreenState extends State<StatsScreen> {
                                               currencyFormat.format(
                                                 entry.value,
                                               ),
-                                              style: const TextStyle(
+                                              style: GoogleFonts.poppins(
                                                 fontWeight: FontWeight.bold,
                                                 fontSize: 14,
                                               ),
                                             ),
                                             Text(
                                               "$percentage%",
-                                              style: const TextStyle(
+                                              style: GoogleFonts.poppins(
                                                 fontSize: 12,
                                                 color: Colors.grey,
                                               ),
@@ -495,9 +591,8 @@ class _StatsScreenState extends State<StatsScreen> {
                                       ],
                                     ),
                                   );
-                                }).toList(),
-                              );
-                            },
+                                })
+                                .toList(),
                           ),
                           const SizedBox(height: 50),
                         ],
@@ -510,41 +605,28 @@ class _StatsScreenState extends State<StatsScreen> {
     );
   }
 
-  // WIDGET TOMBOL FILTER FULL WIDTH (BARU)
-  Widget _buildFilterBtn(String label) {
-    final bool isSelected = _filterType == label;
-    return Expanded(
-      // PAKAI EXPANDED BIAR FULL
-      child: GestureDetector(
-        onTap: () {
-          if (!isSelected) {
-            setState(() {
-              _filterType = label;
-              _fetchStats();
-            });
-          }
-        },
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: isSelected
-                ? AppColors.textPrimary
-                : Colors.transparent, // Hitam kalau aktif
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(
-              color: isSelected ? AppColors.textPrimary : Colors.grey.shade300,
+  // ITEM POPUP MENU (HELPER)
+  PopupMenuItem<String> _buildPopupItem(String value, IconData icon) {
+    return PopupMenuItem(
+      value: value,
+      child: Row(
+        children: [
+          Icon(
+            icon,
+            size: 18,
+            color: value == _filterType ? AppColors.primary : Colors.grey,
+          ),
+          const SizedBox(width: 10),
+          Text(
+            value,
+            style: GoogleFonts.poppins(
+              fontWeight: value == _filterType
+                  ? FontWeight.bold
+                  : FontWeight.normal,
+              color: value == _filterType ? AppColors.primary : Colors.black,
             ),
           ),
-          child: Text(
-            label,
-            style: TextStyle(
-              color: isSelected ? Colors.white : Colors.grey.shade600,
-              fontWeight: FontWeight.w600,
-              fontSize: 12,
-            ),
-          ),
-        ),
+        ],
       ),
     );
   }
@@ -557,11 +639,12 @@ class _StatsScreenState extends State<StatsScreen> {
           if (_showExpense != isExpenseBtn) {
             setState(() {
               _showExpense = isExpenseBtn;
+              _fetchStats();
             });
-            _fetchStats();
           }
         },
-        child: Container(
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
           padding: const EdgeInsets.symmetric(vertical: 12),
           decoration: BoxDecoration(
             color: isSelected ? Colors.white : Colors.transparent,

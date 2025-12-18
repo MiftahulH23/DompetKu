@@ -66,13 +66,11 @@ class AppNotification {
 
   static String _translateError(String error) {
     final e = error.toLowerCase();
-    if (e.contains("invalid login credentials")) {
+    if (e.contains("invalid login credentials"))
       return "Email atau Password salah.";
-    }
     if (e.contains("user already registered")) return "Email sudah terdaftar.";
-    if (e.contains("socketexception") || e.contains("network")) {
+    if (e.contains("socketexception") || e.contains("network"))
       return "Cek koneksi internetmu.";
-    }
     return error
         .replaceAll("AuthException:", "")
         .replaceAll("PostgrestException:", "")

@@ -1,4 +1,4 @@
-import 'package:catat_uang_app/core/app_notification.dart'; // Import Notifikasi Keren
+import 'package:catat_uang_app/core/app_notification.dart';
 import 'package:catat_uang_app/core/colors.dart';
 import 'package:catat_uang_app/models/category_model.dart';
 import 'package:flutter/material.dart';
@@ -17,7 +17,7 @@ class _ManageCategoryScreenState extends State<ManageCategoryScreen> {
   final SupabaseClient _supabase = Supabase.instance.client;
   bool _isExpense = true;
   List<CategoryModel> _categories = [];
-  bool _isLoadingList = true; // Rename biar jelas bedanya sama loading dialog
+  bool _isLoadingList = true;
 
   @override
   void initState() {
@@ -25,7 +25,6 @@ class _ManageCategoryScreenState extends State<ManageCategoryScreen> {
     _fetchCategories();
   }
 
-  // 1. AMBIL DATA
   Future<void> _fetchCategories() async {
     setState(() => _isLoadingList = true);
     try {
@@ -52,7 +51,6 @@ class _ManageCategoryScreenState extends State<ManageCategoryScreen> {
     }
   }
 
-  // 2. TAMBAH BARU (Logic Only)
   Future<void> _addCategoryLogic(String name) async {
     await _supabase.from('categories').insert({
       'name': name,
@@ -62,161 +60,202 @@ class _ManageCategoryScreenState extends State<ManageCategoryScreen> {
     });
   }
 
-  // 3. EDIT KATEGORI (Logic Only)
   Future<void> _editCategoryLogic(int id, String newName) async {
     await _supabase.from('categories').update({'name': newName}).eq('id', id);
   }
 
-  // 4. HAPUS KATEGORI
   Future<void> _deleteCategory(int id) async {
     try {
       await _supabase.from('categories').delete().eq('id', id);
       _fetchCategories();
-      // GANTI PAKE NOTIFIKASI ATAS
-      if (mounted) {
+      if (mounted)
         AppNotification.success(context, "Kategori berhasil dihapus!");
-      }
     } catch (e) {
-      // GANTI PAKE NOTIFIKASI ATAS
-      if (mounted) {
+      if (mounted)
         AppNotification.error(
           context,
-          "Gagal hapus. Kategori sedang digunakan di transaksi.",
+          "Gagal hapus. Kategori sedang digunakan.",
         );
-      }
     }
   }
 
-  // DIALOG PINTAR (DENGAN LOADING STATE)
+  // --- DIALOG MODAL YANG SUDAH DIPERBAIKI UI-NYA ---
   void _showInputDialog({CategoryModel? categoryToEdit}) {
     final isEditing = categoryToEdit != null;
     final controller = TextEditingController(
       text: isEditing ? categoryToEdit.name : '',
     );
 
-    // Kita butuh GlobalKey form kalau mau validasi, tapi pake controller check aja cukup.
-
     showDialog(
       context: context,
-      barrierDismissible:
-          false, // User gak bisa klik luar untuk tutup paksa saat loading
+      barrierDismissible: false,
       builder: (ctx) {
-        // STATEFUL BUILDER: Ini rahasianya biar Dialog bisa punya loading sendiri
+        bool isSaving = false;
+
         return StatefulBuilder(
           builder: (context, setDialogState) {
-            // Variable lokal khusus untuk dialog ini
-            bool isSaving = false;
-
             return AlertDialog(
+              // 1. FIX WARNA PINK: Set surfaceTintColor transparan
+              surfaceTintColor: Colors.transparent,
+              backgroundColor: Colors.white,
+
+              // 2. LEBARKAN MODAL: Atur inset padding
+              insetPadding: const EdgeInsets.symmetric(horizontal: 20),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(15),
+                borderRadius: BorderRadius.circular(20),
               ),
-              title: Text(
-                isEditing
-                    ? "Edit Kategori"
-                    : (_isExpense ? "Tambah Pengeluaran" : "Tambah Pemasukan"),
-                style: GoogleFonts.poppins(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 18,
-                ),
-              ),
-              content: TextField(
-                controller: controller,
-                decoration: InputDecoration(
-                  hintText: "Nama Kategori",
-                  hintStyle: GoogleFonts.poppins(color: Colors.grey),
-                  filled: true,
-                  fillColor: Colors.grey.shade50,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: BorderSide.none,
+
+              title: Center(
+                child: Text(
+                  isEditing
+                      ? "Edit Kategori"
+                      : (_isExpense
+                            ? "Tambah Pengeluaran"
+                            : "Tambah Pemasukan"),
+                  style: GoogleFonts.poppins(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                    color: AppColors.textPrimary,
                   ),
                 ),
-                textCapitalization: TextCapitalization.sentences,
-                autofocus: true,
-                enabled: !isSaving, // Disable input pas lagi loading
               ),
-              actions: [
-                // TOMBOL BATAL
-                TextButton(
-                  onPressed: isSaving ? null : () => Navigator.pop(ctx),
-                  child: Text(
-                    "Batal",
-                    style: GoogleFonts.poppins(color: Colors.grey),
+
+              // 3. KONTEN LEBIH RAPI DENGAN WIDTH MAKSIMAL
+              content: SizedBox(
+                width: double.maxFinite, // Paksa lebar maksimal
+                child: TextField(
+                  controller: controller,
+                  style: GoogleFonts.poppins(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
                   ),
-                ),
-
-                // TOMBOL SIMPAN (DENGAN LOADING)
-                ElevatedButton(
-                  onPressed: isSaving
-                      ? null
-                      : () async {
-                          if (controller.text.trim().isEmpty) return;
-
-                          // 1. Mulai Loading (Update tampilan dialog)
-                          setDialogState(() => isSaving = true);
-
-                          try {
-                            // 2. Jalankan Logic Simpan
-                            if (isEditing) {
-                              await _editCategoryLogic(
-                                categoryToEdit.id,
-                                controller.text.trim(),
-                              );
-                            } else {
-                              await _addCategoryLogic(controller.text.trim());
-                            }
-
-                            // 3. Sukses! Tutup Dialog dulu
-                            if (context.mounted) {
-                              Navigator.pop(context); // Tutup Dialog
-                              _fetchCategories(); // Refresh List di belakang
-
-                              // 4. Tampilkan Notifikasi Sukses
-                              AppNotification.success(
-                                context,
-                                isEditing
-                                    ? "Kategori berhasil diubah!"
-                                    : "Kategori berhasil dibuat!",
-                              );
-                            }
-                          } catch (e) {
-                            // 5. Gagal? Stop loading dialog & Tampilkan error
-                            setDialogState(() => isSaving = false);
-                            if (context.mounted) {
-                              AppNotification.error(
-                                context,
-                                "Terjadi kesalahan: $e",
-                              );
-                            }
-                          }
-                        },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
+                  decoration: InputDecoration(
+                    hintText: "Nama Kategori (Contoh: Bensin)",
+                    hintStyle: GoogleFonts.poppins(
+                      color: Colors.grey.shade400,
+                      fontSize: 14,
                     ),
-                    padding: const EdgeInsets.symmetric(
+                    filled: true,
+                    fillColor: AppColors
+                        .background, // Abu muda biar kontras sama putih
+                    contentPadding: const EdgeInsets.symmetric(
                       horizontal: 20,
-                      vertical: 10,
+                      vertical: 16,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(
+                        color: AppColors.primary,
+                        width: 1.5,
+                      ),
                     ),
                   ),
-                  child: isSaving
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            color: Colors.white,
-                            strokeWidth: 2,
-                          ),
-                        )
-                      : Text(
-                          isEditing ? "Simpan" : "Tambah",
-                          style: GoogleFonts.poppins(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
+                  textCapitalization: TextCapitalization.sentences,
+                  autofocus: true,
+                  enabled: !isSaving,
+                ),
+              ),
+
+              actionsPadding: const EdgeInsets.fromLTRB(
+                20,
+                0,
+                20,
+                24,
+              ), // Padding tombol
+              actions: [
+                Row(
+                  children: [
+                    // TOMBOL BATAL (Expanded)
+                    Expanded(
+                      child: TextButton(
+                        onPressed: isSaving ? null : () => Navigator.pop(ctx),
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
                           ),
                         ),
+                        child: Text(
+                          "Batal",
+                          style: GoogleFonts.poppins(
+                            color: Colors.grey,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+
+                    // TOMBOL SIMPAN (Expanded & Dark Blue)
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: isSaving
+                            ? null
+                            : () async {
+                                if (controller.text.trim().isEmpty) return;
+                                setDialogState(() => isSaving = true);
+                                try {
+                                  if (isEditing) {
+                                    await _editCategoryLogic(
+                                      categoryToEdit.id,
+                                      controller.text.trim(),
+                                    );
+                                  } else {
+                                    await _addCategoryLogic(
+                                      controller.text.trim(),
+                                    );
+                                  }
+                                  if (context.mounted) {
+                                    Navigator.pop(context);
+                                    _fetchCategories();
+                                    AppNotification.success(
+                                      context,
+                                      isEditing
+                                          ? "Berhasil diubah!"
+                                          : "Berhasil ditambah!",
+                                    );
+                                  }
+                                } catch (e) {
+                                  setDialogState(() => isSaving = false);
+                                  if (context.mounted)
+                                    AppNotification.error(context, "Error: $e");
+                                }
+                              },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary, // Dark Blue
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: isSaving
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  color: Colors.white,
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : Text(
+                                "Simpan",
+                                style: GoogleFonts.poppins(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             );
@@ -248,7 +287,6 @@ class _ManageCategoryScreenState extends State<ManageCategoryScreen> {
       ),
       body: Column(
         children: [
-          // TOGGLE BUTTON (EXPENSE / INCOME)
           Container(
             color: AppColors.white,
             padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
@@ -266,8 +304,6 @@ class _ManageCategoryScreenState extends State<ManageCategoryScreen> {
               ),
             ),
           ),
-
-          // LIST KATEGORI
           Expanded(
             child: _isLoadingList
                 ? const Center(child: CircularProgressIndicator())
@@ -284,7 +320,6 @@ class _ManageCategoryScreenState extends State<ManageCategoryScreen> {
                     itemBuilder: (context, index) {
                       final cat = _categories[index];
                       final isSystem = cat.userId == null;
-
                       return Container(
                         margin: const EdgeInsets.only(bottom: 12),
                         padding: const EdgeInsets.symmetric(
@@ -297,7 +332,6 @@ class _ManageCategoryScreenState extends State<ManageCategoryScreen> {
                         ),
                         child: Row(
                           children: [
-                            // ICON JENIS
                             Container(
                               padding: const EdgeInsets.all(10),
                               decoration: BoxDecoration(
@@ -317,8 +351,6 @@ class _ManageCategoryScreenState extends State<ManageCategoryScreen> {
                               ),
                             ),
                             const SizedBox(width: 15),
-
-                            // NAMA KATEGORI
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -342,10 +374,7 @@ class _ManageCategoryScreenState extends State<ManageCategoryScreen> {
                                 ],
                               ),
                             ),
-
-                            // TOMBOL AKSI (Hanya muncul untuk Kategori User)
                             if (!isSystem) ...[
-                              // EDIT
                               IconButton(
                                 icon: const Icon(
                                   PhosphorIconsFill.pencilSimple,
@@ -354,10 +383,7 @@ class _ManageCategoryScreenState extends State<ManageCategoryScreen> {
                                 ),
                                 onPressed: () =>
                                     _showInputDialog(categoryToEdit: cat),
-                                tooltip: "Edit Nama",
                               ),
-
-                              // HAPUS
                               IconButton(
                                 icon: const Icon(
                                   PhosphorIconsFill.trash,
@@ -368,6 +394,11 @@ class _ManageCategoryScreenState extends State<ManageCategoryScreen> {
                                   showDialog(
                                     context: context,
                                     builder: (ctx) => AlertDialog(
+                                      backgroundColor: Colors.white,
+                                      surfaceTintColor: Colors.transparent,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(15),
+                                      ),
                                       title: const Text("Hapus Kategori?"),
                                       content: Text(
                                         "Yakin mau hapus '${cat.name}'?",
@@ -401,8 +432,6 @@ class _ManageCategoryScreenState extends State<ManageCategoryScreen> {
           ),
         ],
       ),
-
-      // TOMBOL TAMBAH (FAB)
       floatingActionButton: FloatingActionButton(
         onPressed: () => _showInputDialog(),
         backgroundColor: AppColors.primary,

@@ -495,7 +495,7 @@ class _HomeScreenState extends State<HomeScreen> {
             setState(() {});
           }
         },
-        backgroundColor: const Color(0xFF2C3E50),
+        backgroundColor: AppColors.primary,
         shape: const CircleBorder(),
         child: const Icon(Icons.add, color: Colors.white, size: 28),
       ),

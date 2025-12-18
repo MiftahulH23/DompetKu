@@ -8,4 +8,5 @@ class AppColors {
   static const Color expense = Color(0xFFE74C3C); // Merah soft
   static const Color textPrimary = Color(0xFF2C3E50);
   static const Color textSecondary = Color(0xFF95A5A6);
+  static const Color accent = Color(0xFF3498DB); // Biru Terang
 }
