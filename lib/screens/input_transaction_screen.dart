@@ -31,7 +31,9 @@ class _InputTransactionScreenState extends State<InputTransactionScreen> {
   int? _selectedCategoryId;
   bool _isLoading = false;
   List<Map<String, dynamic>> _categories = [];
-  bool _isExpense = true;
+
+  // FIX: Default False (Pemasukan) agar sesuai posisi kiri
+  bool _isExpense = false;
 
   @override
   void initState() {
@@ -80,15 +82,13 @@ class _InputTransactionScreenState extends State<InputTransactionScreen> {
         setState(() {
           _categories = List<Map<String, dynamic>>.from(response);
 
-          // LOGIKA PENTING: Set Toggle (Pengeluaran/Pemasukan) sesuai kategori yang diedit
+          // LOGIKA PENTING: Jika mode Edit, paksa toggle mengikuti data transaksi
           if (widget.transactionToEdit != null && _selectedCategoryId != null) {
-            // Cari kategori yang ID-nya cocok
             final selectedCat = _categories.firstWhere(
               (e) => e['id'] == _selectedCategoryId,
               orElse: () => {},
             );
 
-            // Kalau ketemu, sesuaikan toggle-nya (biar gak salah kamar)
             if (selectedCat.isNotEmpty) {
               _isExpense = selectedCat['is_expense'];
             }
@@ -163,9 +163,6 @@ class _InputTransactionScreenState extends State<InputTransactionScreen> {
         .where((c) => c['is_expense'] == _isExpense)
         .toList();
 
-    // HAPUS LOGIKA RESET DISINI AGAR DATA TIDAK HILANG SAAT LOADING
-    // Biarkan logic validasi ditangani oleh properti 'value' di DropdownButton saja
-
     return Scaffold(
       backgroundColor: AppColors.white,
       appBar: AppBar(
@@ -192,7 +189,7 @@ class _InputTransactionScreenState extends State<InputTransactionScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 1. TOGGLE
+            // 1. TOGGLE (PEMASUKAN KIRI, PENGELUARAN KANAN)
             Container(
               padding: const EdgeInsets.all(4),
               decoration: BoxDecoration(
@@ -201,8 +198,11 @@ class _InputTransactionScreenState extends State<InputTransactionScreen> {
               ),
               child: Row(
                 children: [
-                  _buildToggleBtn("Pengeluaran", true),
-                  _buildToggleBtn("Pemasukan", false),
+                  _buildToggleBtn("Pemasukan", false), // False = Income (Kiri)
+                  _buildToggleBtn(
+                    "Pengeluaran",
+                    true,
+                  ), // True = Expense (Kanan)
                 ],
               ),
             ),
@@ -264,7 +264,7 @@ class _InputTransactionScreenState extends State<InputTransactionScreen> {
             ),
             const SizedBox(height: 30),
 
-            // 3. KATEGORI (BUG FIX DISINI)
+            // 3. KATEGORI
             Text(
               "Kategori",
               style: GoogleFonts.poppins(color: Colors.grey, fontSize: 14),
@@ -278,8 +278,6 @@ class _InputTransactionScreenState extends State<InputTransactionScreen> {
               ),
               child: DropdownButtonHideUnderline(
                 child: DropdownButton<int>(
-                  // FIX: Cek dulu apakah ID ada di list. Kalau ada tampilkan, kalau loading/gak ada kasih null SEMENTARA.
-                  // Jangan ubah variabel _selectedCategoryId-nya.
                   value:
                       filteredCategories.any(
                         (cat) => cat['id'] == _selectedCategoryId,
@@ -288,7 +286,6 @@ class _InputTransactionScreenState extends State<InputTransactionScreen> {
                       : null,
 
                   hint: Text(
-                    // Kalau loading list masih kosong, kasih teks Loading...
                     _categories.isEmpty ? "Memuat..." : "Pilih Kategori",
                     style: GoogleFonts.poppins(color: Colors.grey),
                   ),

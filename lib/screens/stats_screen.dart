@@ -17,8 +17,8 @@ class _StatsScreenState extends State<StatsScreen> {
   final SupabaseClient _supabase = Supabase.instance.client;
   bool _isLoading = true;
 
-  // STATE TOGGLE
-  bool _showExpense = true;
+  // STATE TOGGLE (Default False = Pemasukan)
+  bool _showExpense = false;
 
   // STATE FILTER
   String _filterType = 'Bulanan'; // Default
@@ -34,7 +34,7 @@ class _StatsScreenState extends State<StatsScreen> {
     _fetchStats();
   }
 
-  // 1. FETCH DATA (Logika Database - Tetap Sama)
+  // 1. FETCH DATA (SAFETY MODE)
   Future<void> _fetchStats() async {
     setState(() => _isLoading = true);
 
@@ -88,6 +88,11 @@ class _StatsScreenState extends State<StatsScreen> {
         total += amount;
       }
 
+      // FIX CRASH: Jika Total 0, anggap tidak ada data kategori (biar tidak render chart kosong)
+      if (total == 0) {
+        tempTotals.clear();
+      }
+
       var sortedEntries = tempTotals.entries.toList()
         ..sort((a, b) => b.value.compareTo(a.value));
 
@@ -103,7 +108,7 @@ class _StatsScreenState extends State<StatsScreen> {
     }
   }
 
-  // 2. PICKER TANGGAL PINTAR (Logic Date Picker)
+  // 2. PICKER TANGGAL PINTAR
   Future<void> _pickSmartDate() async {
     if (_filterType == 'Harian') {
       final picked = await showDatePicker(
@@ -112,6 +117,20 @@ class _StatsScreenState extends State<StatsScreen> {
         firstDate: DateTime(2020),
         lastDate: DateTime(2030),
         locale: const Locale('id', 'ID'),
+        builder: (context, child) {
+          return Theme(
+            data: Theme.of(context).copyWith(
+              colorScheme: const ColorScheme.light(
+                primary: AppColors.primary,
+                onPrimary: Colors.white,
+                onSurface: Colors.black,
+                surface: Colors.white,
+              ),
+              dialogBackgroundColor: Colors.white,
+            ),
+            child: child!,
+          );
+        },
       );
       if (picked != null) {
         setState(() => _selectedDate = picked);
@@ -121,6 +140,8 @@ class _StatsScreenState extends State<StatsScreen> {
       showDialog(
         context: context,
         builder: (ctx) => AlertDialog(
+          backgroundColor: Colors.white,
+          surfaceTintColor: Colors.transparent,
           title: const Text("Pilih Tahun"),
           content: SizedBox(
             width: 300,
@@ -139,7 +160,6 @@ class _StatsScreenState extends State<StatsScreen> {
         ),
       );
     } else {
-      // Bulanan
       final months = [
         "Januari",
         "Februari",
@@ -157,6 +177,8 @@ class _StatsScreenState extends State<StatsScreen> {
       showDialog(
         context: context,
         builder: (ctx) => AlertDialog(
+          backgroundColor: Colors.white,
+          surfaceTintColor: Colors.transparent,
           title: Text("Pilih Bulan (${_selectedDate.year})"),
           content: SizedBox(
             width: double.maxFinite,
@@ -210,6 +232,8 @@ class _StatsScreenState extends State<StatsScreen> {
                 showDialog(
                   context: context,
                   builder: (context) => AlertDialog(
+                    backgroundColor: Colors.white,
+                    surfaceTintColor: Colors.transparent,
                     title: const Text("Ganti Tahun"),
                     content: SizedBox(
                       width: 300,
@@ -250,7 +274,6 @@ class _StatsScreenState extends State<StatsScreen> {
       decimalDigits: 0,
     );
 
-    // Label Tanggal (Dinamis sesuai filter)
     String dateLabel = "";
     if (_filterType == 'Harian') {
       dateLabel = DateFormat('d MMMM yyyy', 'id_ID').format(_selectedDate);
@@ -259,6 +282,8 @@ class _StatsScreenState extends State<StatsScreen> {
     } else {
       dateLabel = DateFormat('yyyy', 'id_ID').format(_selectedDate);
     }
+
+    final themeColor = _showExpense ? AppColors.expense : AppColors.income;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -288,7 +313,7 @@ class _StatsScreenState extends State<StatsScreen> {
                   ),
                   const SizedBox(height: 20),
 
-                  // TOGGLE (PENGELUARAN / PEMASUKAN)
+                  // TOGGLE
                   Container(
                     padding: const EdgeInsets.all(4),
                     decoration: BoxDecoration(
@@ -297,17 +322,16 @@ class _StatsScreenState extends State<StatsScreen> {
                     ),
                     child: Row(
                       children: [
-                        _buildToggleBtn("Pengeluaran", true),
                         _buildToggleBtn("Pemasukan", false),
+                        _buildToggleBtn("Pengeluaran", true),
                       ],
                     ),
                   ),
                   const SizedBox(height: 15),
 
-                  // --- BARIS FILTER (CLEAN & MEWAH) ---
+                  // FILTER & DATE
                   Row(
                     children: [
-                      // 1. TOMBOL "FILTER" (POPUP MENU)
                       Container(
                         decoration: BoxDecoration(
                           border: Border.all(color: Colors.grey.shade300),
@@ -315,10 +339,12 @@ class _StatsScreenState extends State<StatsScreen> {
                           color: Colors.white,
                         ),
                         child: PopupMenuButton<String>(
+                          color: Colors.white,
+                          surfaceTintColor: Colors.transparent,
                           onSelected: (value) {
                             setState(() {
                               _filterType = value;
-                              _fetchStats(); // Auto refresh
+                              _fetchStats();
                             });
                           },
                           shape: RoundedRectangleBorder(
@@ -332,7 +358,6 @@ class _StatsScreenState extends State<StatsScreen> {
                             ),
                             _buildPopupItem("Tahunan", Icons.calendar_today),
                           ],
-                          // TAMPILAN TOMBOL FILTER
                           child: Padding(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 12,
@@ -365,10 +390,7 @@ class _StatsScreenState extends State<StatsScreen> {
                           ),
                         ),
                       ),
-
                       const SizedBox(width: 10),
-
-                      // 2. TOMBOL TANGGAL (EXPANDED BIAR RAPI)
                       Expanded(
                         child: InkWell(
                           onTap: _pickSmartDate,
@@ -418,11 +440,13 @@ class _StatsScreenState extends State<StatsScreen> {
               ),
             ),
 
-            // === CONTENT (SCROLLABLE) ===
+            // === CONTENT ===
             Expanded(
               child: _isLoading
                   ? const Center(child: CircularProgressIndicator())
-                  : _categoryTotals.isEmpty
+                  : _categoryTotals.isEmpty ||
+                        _totalAmount ==
+                            0 // FIX: Cek Total Amount juga
                   ? Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -447,49 +471,7 @@ class _StatsScreenState extends State<StatsScreen> {
                       ),
                       child: Column(
                         children: [
-                          // CARD TOTAL (DARK BLUE)
-                          Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.all(24),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF2C3E50),
-                              borderRadius: BorderRadius.circular(25),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: const Color(
-                                    0xFF2C3E50,
-                                  ).withOpacity(0.4),
-                                  blurRadius: 15,
-                                  offset: const Offset(0, 8),
-                                ),
-                              ],
-                            ),
-                            child: Column(
-                              children: [
-                                Text(
-                                  _showExpense
-                                      ? "Total Pengeluaran"
-                                      : "Total Pemasukan",
-                                  style: GoogleFonts.poppins(
-                                    fontSize: 12,
-                                    color: Colors.white70,
-                                  ),
-                                ),
-                                const SizedBox(height: 5),
-                                Text(
-                                  currencyFormat.format(_totalAmount),
-                                  style: GoogleFonts.poppins(
-                                    fontSize: 28,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 30),
-
-                          // PIE CHART
+                          // 1. CHART
                           SizedBox(
                             height: 250,
                             child: PieChart(
@@ -521,78 +503,139 @@ class _StatsScreenState extends State<StatsScreen> {
                           ),
                           const SizedBox(height: 30),
 
-                          // LIST KATEGORI
-                          Column(
-                            children: _categoryTotals.entries
-                                .toList()
-                                .asMap()
-                                .entries
-                                .map((entryMap) {
-                                  final index = entryMap.key;
-                                  final entry = entryMap.value;
-                                  final percentage =
-                                      (entry.value / _totalAmount * 100)
-                                          .toStringAsFixed(1);
-                                  final color = _getColor(index);
+                          // 2. TOTAL AMOUNT (CARD KEMBAR HISTORY)
+                          Container(
+                            margin: const EdgeInsets.only(bottom: 20),
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(15),
+                              border: Border.all(
+                                color: themeColor.withOpacity(0.2),
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: themeColor.withOpacity(0.05),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
+                            ),
+                            child: Row(
+                              children: [
+                                // Icon Box
+                                Container(
+                                  padding: const EdgeInsets.all(10),
+                                  decoration: BoxDecoration(
+                                    color: themeColor.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Icon(
+                                    _showExpense
+                                        ? PhosphorIconsFill.trendDown
+                                        : PhosphorIconsFill.trendUp,
+                                    color: themeColor,
+                                    size: 24,
+                                  ),
+                                ),
+                                const SizedBox(width: 15),
 
-                                  return Container(
-                                    margin: const EdgeInsets.only(bottom: 12),
-                                    padding: const EdgeInsets.all(16),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white,
-                                      borderRadius: BorderRadius.circular(15),
-                                    ),
-                                    child: Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.spaceBetween,
+                                // Text Label
+                                Text(
+                                  _showExpense
+                                      ? "Total Pengeluaran"
+                                      : "Total Pemasukan",
+                                  style: GoogleFonts.poppins(
+                                    color: Colors.grey,
+                                    fontWeight: FontWeight.w500,
+                                    fontSize: 13,
+                                  ),
+                                ),
+
+                                const Spacer(), // PENDORONG KE KANAN
+                                // Nominal (Kanan)
+                                Text(
+                                  currencyFormat.format(_totalAmount),
+                                  style: GoogleFonts.poppins(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                    color: themeColor,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          // 3. LIST KATEGORI
+                          ListView.builder(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            itemCount: _categoryTotals.length,
+                            itemBuilder: (context, index) {
+                              final entry = _categoryTotals.entries.elementAt(
+                                index,
+                              );
+                              final percentage = _totalAmount == 0
+                                  ? "0.0"
+                                  : (entry.value / _totalAmount * 100)
+                                        .toStringAsFixed(1);
+                              final color = _getColor(index);
+
+                              return Container(
+                                margin: const EdgeInsets.only(bottom: 12),
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(15),
+                                ),
+                                child: Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Row(
                                       children: [
-                                        Row(
-                                          children: [
-                                            Container(
-                                              width: 12,
-                                              height: 12,
-                                              decoration: BoxDecoration(
-                                                color: color,
-                                                shape: BoxShape.circle,
-                                              ),
-                                            ),
-                                            const SizedBox(width: 12),
-                                            Text(
-                                              entry.key,
-                                              style: GoogleFonts.poppins(
-                                                fontWeight: FontWeight.w600,
-                                                fontSize: 14,
-                                              ),
-                                            ),
-                                          ],
+                                        Container(
+                                          width: 12,
+                                          height: 12,
+                                          decoration: BoxDecoration(
+                                            color: color,
+                                            shape: BoxShape.circle,
+                                          ),
                                         ),
-                                        Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.end,
-                                          children: [
-                                            Text(
-                                              currencyFormat.format(
-                                                entry.value,
-                                              ),
-                                              style: GoogleFonts.poppins(
-                                                fontWeight: FontWeight.bold,
-                                                fontSize: 14,
-                                              ),
-                                            ),
-                                            Text(
-                                              "$percentage%",
-                                              style: GoogleFonts.poppins(
-                                                fontSize: 12,
-                                                color: Colors.grey,
-                                              ),
-                                            ),
-                                          ],
+                                        const SizedBox(width: 12),
+                                        Text(
+                                          entry.key,
+                                          style: GoogleFonts.poppins(
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: 14,
+                                          ),
                                         ),
                                       ],
                                     ),
-                                  );
-                                })
-                                .toList(),
+                                    Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.end,
+                                      children: [
+                                        Text(
+                                          currencyFormat.format(entry.value),
+                                          style: GoogleFonts.poppins(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 14,
+                                          ),
+                                        ),
+                                        Text(
+                                          "$percentage%",
+                                          style: GoogleFonts.poppins(
+                                            fontSize: 12,
+                                            color: Colors.grey,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
                           ),
                           const SizedBox(height: 50),
                         ],
@@ -605,7 +648,6 @@ class _StatsScreenState extends State<StatsScreen> {
     );
   }
 
-  // ITEM POPUP MENU (HELPER)
   PopupMenuItem<String> _buildPopupItem(String value, IconData icon) {
     return PopupMenuItem(
       value: value,
@@ -680,10 +722,14 @@ class _StatsScreenState extends State<StatsScreen> {
       final fontSize = isTouched ? 18.0 : 12.0;
       final radius = isTouched ? 60.0 : 50.0;
       final color = _getColor(i);
+      final double percentage = _totalAmount == 0
+          ? 0.0
+          : (entry.value / _totalAmount * 100);
+
       final widget = PieChartSectionData(
         color: color,
         value: entry.value,
-        title: '${(entry.value / _totalAmount * 100).toStringAsFixed(0)}%',
+        title: '${percentage.toStringAsFixed(0)}%',
         radius: radius,
         titleStyle: TextStyle(
           fontSize: fontSize,

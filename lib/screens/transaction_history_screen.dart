@@ -1,5 +1,6 @@
 import 'package:catat_uang_app/core/app_notification.dart';
 import 'package:catat_uang_app/core/colors.dart';
+import 'package:catat_uang_app/models/category_model.dart';
 import 'package:catat_uang_app/models/transaction_model.dart';
 import 'package:catat_uang_app/screens/input_transaction_screen.dart';
 import 'package:flutter/material.dart';
@@ -23,30 +24,64 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
   bool _isLoading = true;
   List<TransactionModel> _transactions = [];
 
+  // DATA KATEGORI
+  List<CategoryModel> _categoryList = [];
+
   // FILTER STATE
+  int? _selectedCategoryId; // Null = Semua Kategori
   String _filterType = 'Bulanan';
   DateTime _selectedDate = DateTime.now();
+
+  // TOTAL SUMMARY
+  double _totalAmount = 0;
 
   @override
   void initState() {
     super.initState();
+    _fetchCategories();
     _fetchTransactions();
   }
 
+  // 1. AMBIL DAFTAR KATEGORI
+  Future<void> _fetchCategories() async {
+    try {
+      final userId = _supabase.auth.currentUser!.id;
+      final response = await _supabase
+          .from('categories')
+          .select()
+          .eq('is_expense', widget.isExpense)
+          .or('user_id.is.null,user_id.eq.$userId')
+          .order('name', ascending: true);
+
+      final data = response as List<dynamic>;
+      if (mounted) {
+        setState(() {
+          _categoryList = data
+              .map((json) => CategoryModel.fromJson(json))
+              .toList();
+        });
+      }
+    } catch (e) {
+      debugPrint("Error categories: $e");
+    }
+  }
+
+  // 2. AMBIL TRANSAKSI
   Future<void> _fetchTransactions() async {
     setState(() => _isLoading = true);
     try {
       final userId = _supabase.auth.currentUser!.id;
 
-      // Query Dasar
       var query = _supabase
           .from('transactions')
           .select('*, categories!inner(*)')
           .eq('user_id', userId)
-          .eq(
-            'categories.is_expense',
-            widget.isExpense,
-          ); // Filter sesuai Tab (Masuk/Keluar)
+          .eq('categories.is_expense', widget.isExpense);
+
+      // Filter Kategori (Jika bukan NULL)
+      if (_selectedCategoryId != null) {
+        query = query.eq('category_id', _selectedCategoryId!);
+      }
 
       final dateStr = DateFormat('yyyy-MM-dd').format(_selectedDate);
 
@@ -71,17 +106,22 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
             .lt('date', DateFormat('yyyy-MM-dd').format(nextYear));
       }
 
-      final response = await query.order(
-        'date',
-        ascending: false,
-      ); // Urutkan dari yang terbaru
+      final response = await query.order('date', ascending: false);
       final List<dynamic> data = response;
+
+      double tempTotal = 0;
+      List<TransactionModel> loadedTrx = [];
+
+      for (var item in data) {
+        final trx = TransactionModel.fromJson(item);
+        loadedTrx.add(trx);
+        tempTotal += trx.amount;
+      }
 
       if (mounted) {
         setState(() {
-          _transactions = data
-              .map((json) => TransactionModel.fromJson(json))
-              .toList();
+          _transactions = loadedTrx;
+          _totalAmount = tempTotal;
           _isLoading = false;
         });
       }
@@ -101,7 +141,6 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
   }
 
   Future<void> _pickSmartDate() async {
-    // Logic Date Picker
     if (_filterType == 'Harian') {
       final picked = await showDatePicker(
         context: context,
@@ -109,12 +148,30 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
         firstDate: DateTime(2020),
         lastDate: DateTime(2030),
         locale: const Locale('id', 'ID'),
+        builder: (context, child) {
+          return Theme(
+            data: Theme.of(context).copyWith(
+              colorScheme: const ColorScheme.light(
+                primary: AppColors.primary,
+                onPrimary: Colors.white,
+                surface: Colors.white,
+              ),
+              dialogBackgroundColor: Colors.white,
+            ),
+            child: child!,
+          );
+        },
       );
-      if (picked != null) setState(() => _selectedDate = picked);
+      if (picked != null) {
+        setState(() => _selectedDate = picked);
+        _fetchTransactions();
+      }
     } else if (_filterType == 'Tahunan') {
       showDialog(
         context: context,
-        builder: (context) => AlertDialog(
+        builder: (ctx) => AlertDialog(
+          backgroundColor: Colors.white,
+          surfaceTintColor: Colors.transparent,
           title: const Text("Pilih Tahun"),
           content: SizedBox(
             width: 300,
@@ -125,12 +182,13 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
               selectedDate: _selectedDate,
               onChanged: (dt) {
                 setState(() => _selectedDate = dt);
-                Navigator.pop(context);
+                Navigator.pop(ctx);
+                _fetchTransactions();
               },
             ),
           ),
         ),
-      ).then((_) => _fetchTransactions());
+      );
     } else {
       final months = [
         "Januari",
@@ -149,16 +207,18 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
       showDialog(
         context: context,
         builder: (ctx) => AlertDialog(
+          backgroundColor: Colors.white,
+          surfaceTintColor: Colors.transparent,
           title: Text("Pilih Bulan (${_selectedDate.year})"),
           content: SizedBox(
             width: double.maxFinite,
             child: GridView.builder(
               shrinkWrap: true,
+              itemCount: months.length,
               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 3,
                 childAspectRatio: 1.5,
               ),
-              itemCount: months.length,
               itemBuilder: (ctx, index) {
                 return InkWell(
                   onTap: () {
@@ -170,6 +230,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                       ),
                     );
                     Navigator.pop(ctx);
+                    _fetchTransactions();
                   },
                   child: Container(
                     margin: const EdgeInsets.all(4),
@@ -201,6 +262,8 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                 showDialog(
                   context: context,
                   builder: (context) => AlertDialog(
+                    backgroundColor: Colors.white,
+                    surfaceTintColor: Colors.transparent,
                     title: const Text("Ganti Tahun"),
                     content: SizedBox(
                       width: 300,
@@ -229,9 +292,8 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
             ),
           ],
         ),
-      ).then((_) => _fetchTransactions());
+      );
     }
-    if (_filterType == 'Harian') _fetchTransactions();
   }
 
   @override
@@ -254,6 +316,18 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
     else
       dateLabel = DateFormat('yyyy', 'id_ID').format(_selectedDate);
 
+    // LOGIC NAMA KATEGORI
+    String selectedCategoryName = "Semua Kategori";
+    if (_selectedCategoryId != null && _categoryList.isNotEmpty) {
+      try {
+        selectedCategoryName = _categoryList
+            .firstWhere((e) => e.id == _selectedCategoryId)
+            .name;
+      } catch (e) {
+        selectedCategoryName = "Kategori Terhapus";
+      }
+    }
+
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
@@ -265,7 +339,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
               decoration: const BoxDecoration(
                 color: AppColors.white,
                 borderRadius: BorderRadius.vertical(
-                  bottom: Radius.circular(20),
+                  bottom: Radius.circular(25),
                 ),
               ),
               child: Column(
@@ -279,52 +353,82 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                       color: themeColor,
                     ),
                   ),
-                  const SizedBox(height: 15),
+                  const SizedBox(height: 20),
+
+                  // BARIS 1: Waktu & Tanggal (FIXED OVERFLOW)
                   Row(
                     children: [
-                      _buildFilterBtn("Harian", themeColor),
+                      // Filter Waktu (Flex 2) - Kasih porsi 40%
+                      Expanded(
+                        flex: 2,
+                        child: _buildDropdownFilter(
+                          icon: PhosphorIconsFill.faders,
+                          label: _filterType,
+                          items: ["Harian", "Bulanan", "Tahunan"],
+                          onSelected: (val) {
+                            setState(() {
+                              _filterType = val;
+                              _fetchTransactions();
+                            });
+                          },
+                        ),
+                      ),
+
                       const SizedBox(width: 10),
-                      _buildFilterBtn("Bulanan", themeColor),
-                      const SizedBox(width: 10),
-                      _buildFilterBtn("Tahunan", themeColor),
+
+                      // Tanggal (Flex 3) - Kasih porsi 60% biar lega
+                      Expanded(
+                        flex: 3,
+                        child: InkWell(
+                          onTap: _pickSmartDate,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 12,
+                            ),
+                            decoration: BoxDecoration(
+                              border: Border.all(color: Colors.grey.shade300),
+                              borderRadius: BorderRadius.circular(12),
+                              color: Colors.white,
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  PhosphorIconsRegular.calendarBlank,
+                                  size: 18,
+                                  color: themeColor,
+                                ),
+                                const SizedBox(width: 8),
+                                // FIX OVERFLOW DISINI: Bungkus Text dengan Expanded
+                                Expanded(
+                                  child: Text(
+                                    dateLabel,
+                                    overflow: TextOverflow
+                                        .ellipsis, // Titik-titik kalau kepanjangan
+                                    maxLines: 1,
+                                    style: GoogleFonts.poppins(
+                                      fontWeight: FontWeight.w500,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ),
+                                const Icon(
+                                  Icons.arrow_drop_down,
+                                  size: 18,
+                                  color: Colors.grey,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
                     ],
                   ),
-                  const SizedBox(height: 15),
-                  InkWell(
-                    onTap: _pickSmartDate,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 12,
-                      ),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey.shade300),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Row(
-                            children: [
-                              Icon(
-                                Icons.calendar_today,
-                                size: 18,
-                                color: themeColor,
-                              ),
-                              const SizedBox(width: 10),
-                              Text(
-                                dateLabel,
-                                style: GoogleFonts.poppins(
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const Icon(Icons.arrow_drop_down, color: Colors.grey),
-                        ],
-                      ),
-                    ),
-                  ),
+
+                  const SizedBox(height: 10),
+
+                  // BARIS 2: Kategori
+                  _buildCategoryFilter(selectedCategoryName),
                 ],
               ),
             ),
@@ -340,166 +444,226 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                         style: GoogleFonts.poppins(color: Colors.grey),
                       ),
                     )
-                  : ListView.builder(
+                  : SingleChildScrollView(
                       padding: const EdgeInsets.all(20),
-                      itemCount: _transactions.length,
-                      itemBuilder: (context, index) {
-                        final trx = _transactions[index];
-
-                        // LOGIKA NOTE
-                        final String noteText =
-                            (trx.note != null && trx.note!.isNotEmpty)
-                            ? trx.note!
-                            : "Tidak ada catatan";
-                        final Color noteColor =
-                            (trx.note != null && trx.note!.isNotEmpty)
-                            ? Colors.grey.shade600
-                            : Colors.grey.shade400;
-
-                        return Dismissible(
-                          key: Key(trx.id.toString()),
-                          direction: DismissDirection.endToStart,
-                          background: Container(
-                            alignment: Alignment.centerRight,
-                            padding: const EdgeInsets.only(right: 20),
-                            margin: const EdgeInsets.only(bottom: 12),
+                      child: Column(
+                        children: [
+                          // CARD TOTAL
+                          Container(
+                            width: double.infinity,
+                            margin: const EdgeInsets.only(bottom: 20),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 15,
+                            ),
                             decoration: BoxDecoration(
-                              color: Colors.red,
-                              borderRadius: BorderRadius.circular(15),
-                            ),
-                            child: const Icon(
-                              Icons.delete,
                               color: Colors.white,
-                            ),
-                          ),
-                          confirmDismiss: (d) async => await showDialog(
-                            context: context,
-                            builder: (ctx) => AlertDialog(
-                              title: const Text("Hapus?"),
-                              actions: [
-                                TextButton(
-                                  onPressed: () => Navigator.pop(ctx, false),
-                                  child: const Text("Batal"),
+                              borderRadius: BorderRadius.circular(15),
+                              border: Border.all(
+                                color: themeColor.withOpacity(0.2),
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: themeColor.withOpacity(0.05),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 4),
                                 ),
-                                TextButton(
-                                  onPressed: () => Navigator.pop(ctx, true),
-                                  child: const Text(
-                                    "Hapus",
-                                    style: TextStyle(color: Colors.red),
+                              ],
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Row(
+                                  children: [
+                                    Icon(
+                                      widget.isExpense
+                                          ? PhosphorIconsFill.trendDown
+                                          : PhosphorIconsFill.trendUp,
+                                      color: themeColor,
+                                      size: 20,
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Text(
+                                      "Total",
+                                      style: GoogleFonts.poppins(
+                                        color: Colors.grey,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                Text(
+                                  currencyFormat.format(_totalAmount),
+                                  style: GoogleFonts.poppins(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 18,
+                                    color: themeColor,
                                   ),
                                 ),
                               ],
                             ),
                           ),
-                          onDismissed: (d) => _deleteTransaction(trx.id),
-                          child: GestureDetector(
-                            onTap: () async {
-                              final result = await Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => InputTransactionScreen(
-                                    transactionToEdit: trx,
+
+                          ListView.builder(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            itemCount: _transactions.length,
+                            itemBuilder: (context, index) {
+                              final trx = _transactions[index];
+                              final String noteText =
+                                  (trx.note != null && trx.note!.isNotEmpty)
+                                  ? trx.note!
+                                  : "Tidak ada catatan";
+                              final Color noteColor =
+                                  (trx.note != null && trx.note!.isNotEmpty)
+                                  ? Colors.grey.shade600
+                                  : Colors.grey.shade400;
+
+                              return Dismissible(
+                                key: Key(trx.id.toString()),
+                                direction: DismissDirection.endToStart,
+                                background: Container(
+                                  alignment: Alignment.centerRight,
+                                  padding: const EdgeInsets.only(right: 20),
+                                  margin: const EdgeInsets.only(bottom: 12),
+                                  decoration: BoxDecoration(
+                                    color: Colors.red,
+                                    borderRadius: BorderRadius.circular(15),
+                                  ),
+                                  child: const Icon(
+                                    Icons.delete,
+                                    color: Colors.white,
                                   ),
                                 ),
-                              );
-                              if (result == true) _fetchTransactions();
-                            },
-                            child: Container(
-                              margin: const EdgeInsets.only(bottom: 12),
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(15),
-                              ),
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  // ICON
-                                  Container(
-                                    padding: const EdgeInsets.all(10),
-                                    decoration: BoxDecoration(
-                                      color: themeColor.withOpacity(0.1),
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: Icon(
-                                      widget.isExpense
-                                          ? PhosphorIcons.arrowUp()
-                                          : PhosphorIcons.arrowDown(),
-                                      color: themeColor,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 15),
-
-                                  // TEXT CENTER (Kategori & Catatan)
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        // JUDUL KATEGORI
-                                        Text(
-                                          trx.category?.name ?? "Umum",
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 14,
-                                            color: AppColors.textPrimary,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 4),
-
-                                        // CATATAN
-                                        Text(
-                                          noteText,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: TextStyle(
-                                            color: noteColor,
-                                            fontSize: 12,
-                                            fontStyle:
-                                                (trx.note == null ||
-                                                    trx.note!.isEmpty)
-                                                ? FontStyle.italic
-                                                : FontStyle.normal,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-
-                                  // KOLOM KANAN (Nominal & Tanggal)
-                                  Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.end, // Rata Kanan
-                                    children: [
-                                      // JUMLAH UANG
-                                      Text(
-                                        currencyFormat.format(trx.amount),
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          color: themeColor,
-                                          fontSize: 14,
-                                        ),
+                                confirmDismiss: (d) async => await showDialog(
+                                  context: context,
+                                  builder: (ctx) => AlertDialog(
+                                    backgroundColor: Colors.white,
+                                    surfaceTintColor: Colors.transparent,
+                                    title: const Text("Hapus?"),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () =>
+                                            Navigator.pop(ctx, false),
+                                        child: const Text("Batal"),
                                       ),
-                                      const SizedBox(height: 4),
-                                      // TANGGAL (Sekarang di bawah Nominal)
-                                      Text(
-                                        DateFormat(
-                                          'd MMM yyyy',
-                                          'id_ID',
-                                        ).format(trx.date),
-                                        style: const TextStyle(
-                                          color: AppColors.textSecondary,
-                                          fontSize: 12,
+                                      TextButton(
+                                        onPressed: () =>
+                                            Navigator.pop(ctx, true),
+                                        child: const Text(
+                                          "Hapus",
+                                          style: TextStyle(color: Colors.red),
                                         ),
                                       ),
                                     ],
                                   ),
-                                ],
-                              ),
-                            ),
+                                ),
+                                onDismissed: (d) => _deleteTransaction(trx.id),
+                                child: GestureDetector(
+                                  onTap: () async {
+                                    final result = await Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) =>
+                                            InputTransactionScreen(
+                                              transactionToEdit: trx,
+                                            ),
+                                      ),
+                                    );
+                                    if (result == true) _fetchTransactions();
+                                  },
+                                  child: Container(
+                                    margin: const EdgeInsets.only(bottom: 12),
+                                    padding: const EdgeInsets.all(16),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(15),
+                                    ),
+                                    child: Row(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.all(10),
+                                          decoration: BoxDecoration(
+                                            color: themeColor.withOpacity(0.1),
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
+                                          ),
+                                          child: Icon(
+                                            widget.isExpense
+                                                ? PhosphorIcons.arrowUp()
+                                                : PhosphorIcons.arrowDown(),
+                                            color: themeColor,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 15),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                trx.category?.name ?? "Umum",
+                                                style: const TextStyle(
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 16,
+                                                  color: AppColors.textPrimary,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 4),
+                                              Text(
+                                                noteText,
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: TextStyle(
+                                                  color: noteColor,
+                                                  fontSize: 12,
+                                                  fontStyle:
+                                                      (trx.note == null ||
+                                                          trx.note!.isEmpty)
+                                                      ? FontStyle.italic
+                                                      : FontStyle.normal,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.end,
+                                          children: [
+                                            Text(
+                                              currencyFormat.format(trx.amount),
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                color: themeColor,
+                                                fontSize: 14,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              DateFormat(
+                                                'd MMM yyyy',
+                                                'id_ID',
+                                              ).format(trx.date),
+                                              style: const TextStyle(
+                                                color: AppColors.textSecondary,
+                                                fontSize: 12,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
                           ),
-                        );
-                      },
+                        ],
+                      ),
                     ),
             ),
           ],
@@ -508,35 +672,142 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
     );
   }
 
-  Widget _buildFilterBtn(String label, Color themeColor) {
-    final bool isSelected = _filterType == label;
-    return Expanded(
-      child: GestureDetector(
-        onTap: () {
-          if (!isSelected) {
-            setState(() {
-              _filterType = label;
-              _fetchTransactions();
-            });
-          }
-        },
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: isSelected ? AppColors.textPrimary : Colors.transparent,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(
-              color: isSelected ? AppColors.textPrimary : Colors.grey.shade300,
-            ),
+  Widget _buildDropdownFilter({
+    required IconData icon,
+    required String label,
+    required List<String> items,
+    required Function(String) onSelected,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.grey.shade300),
+        borderRadius: BorderRadius.circular(12),
+        color: Colors.white,
+      ),
+      child: PopupMenuButton<String>(
+        color: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        onSelected: onSelected,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+        itemBuilder: (context) => items
+            .map(
+              (item) => PopupMenuItem(
+                value: item,
+                child: Text(
+                  item,
+                  style: GoogleFonts.poppins(
+                    fontWeight: item == label
+                        ? FontWeight.bold
+                        : FontWeight.normal,
+                  ),
+                ),
+              ),
+            )
+            .toList(),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          child: Row(
+            children: [
+              Icon(icon, size: 18, color: AppColors.textPrimary),
+              const SizedBox(width: 8),
+              // Bungkus Text dengan Expanded juga biar aman
+              Expanded(
+                child: Text(
+                  label,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.poppins(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ),
+              const Icon(Icons.arrow_drop_down, size: 18, color: Colors.grey),
+            ],
           ),
-          child: Text(
-            label,
-            style: TextStyle(
-              color: isSelected ? Colors.white : Colors.grey.shade600,
-              fontWeight: FontWeight.w600,
-              fontSize: 12,
+        ),
+      ),
+    );
+  }
+
+  // WIDGET KATEGORI FULL WIDTH (FIXED: PAKE ID -1)
+  Widget _buildCategoryFilter(String label) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.grey.shade300),
+        borderRadius: BorderRadius.circular(12),
+        color: Colors.white,
+      ),
+      child: PopupMenuButton<int>(
+        color: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        onSelected: (val) {
+          setState(() {
+            if (val == -1) {
+              _selectedCategoryId = null;
+            } else {
+              _selectedCategoryId = val;
+            }
+            _fetchTransactions();
+          });
+        },
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+        itemBuilder: (context) {
+          List<PopupMenuEntry<int>> items = [
+            PopupMenuItem(
+              value: -1,
+              child: Text(
+                "Semua Kategori",
+                style: GoogleFonts.poppins(
+                  fontWeight: _selectedCategoryId == null
+                      ? FontWeight.bold
+                      : FontWeight.normal,
+                ),
+              ),
             ),
+            const PopupMenuDivider(),
+          ];
+          items.addAll(
+            _categoryList.map(
+              (cat) => PopupMenuItem(
+                value: cat.id,
+                child: Text(
+                  cat.name,
+                  style: GoogleFonts.poppins(
+                    fontWeight: _selectedCategoryId == cat.id
+                        ? FontWeight.bold
+                        : FontWeight.normal,
+                  ),
+                ),
+              ),
+            ),
+          );
+          return items;
+        },
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          child: Row(
+            children: [
+              const Icon(
+                PhosphorIconsFill.tag,
+                size: 18,
+                color: AppColors.textPrimary,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  label,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.poppins(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ),
+              const Icon(Icons.arrow_drop_down, size: 18, color: Colors.grey),
+            ],
           ),
         ),
       ),
